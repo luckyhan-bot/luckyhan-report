@@ -1,4 +1,4 @@
-// 오늘(또는 지정일) 네이버 증권 종목분석 리포트를 모아 work/<날짜>/reports.json 과 PDF 텍스트를 만든다.
+// 오늘(또는 지정일) 네이버 증권 종목분석 + 한경 컨센서스 기업 리포트를 모아 work/<날짜>/reports.json 과 PDF 텍스트를 만든다.
 // 사용: node scripts/fetch.js [YYYY-MM-DD]
 // 공개 모바일 페이지(m.stock.naver.com)를 브라우저로 열어, 페이지가 스스로 불러오는 데이터를 읽는다.
 const { chromium } = require('playwright');
@@ -16,8 +16,8 @@ fs.mkdirSync(path.join(WORK, 'pdf'), { recursive: true });
 const num = s => { if (s == null) return null; const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : null; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function withPage(browser, fn) {
-  const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 412, height: 900 } });
+async function withPage(browser, fn, desktop) {
+  const ctx = await browser.newContext(desktop ? { viewport: { width: 1280, height: 900 } } : { userAgent: UA, viewport: { width: 412, height: 900 } });
   const p = await ctx.newPage();
   try { return await fn(p); } finally { await ctx.close(); }
 }
@@ -43,6 +43,29 @@ async function fetchList(browser) {
     }
     return [...rows.values()].filter(x => x.writeDate === DAY && x.itemCode);
   });
+}
+
+// 1-2) 한경 컨센서스 기업 리포트 목록 (네이버에 없는 증권사 리포트 보충)
+async function fetchHK(browser) {
+  return withPage(browser, async p => {
+    const out = [];
+    for (let pg = 1; pg <= 10; pg++) {
+      await p.goto(`https://consensus.hankyung.com/analysis/list?sdate=${DAY}&edate=${DAY}&report_type=CO&now_page=${pg}`, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+      const rows = await p.evaluate(() => [...document.querySelectorAll('table tbody tr')]
+        .filter(tr => tr.querySelectorAll('td').length >= 6 && /\d{4}-\d{2}-\d{2}/.test(tr.innerText))
+        .map(tr => { const td = [...tr.querySelectorAll('td')].map(x => x.innerText.trim().replace(/\s+/g, ' ')); const a = tr.querySelector('a[href*="downpdf"]');
+          return { date: td[0], head: td[1], target: td[2], opinion: td[3], broker: td[5], pdf: a ? a.href : null }; }));
+      if (!rows.length) break;
+      for (const r of rows) {
+        const m = r.head.match(/^(.+?)\((\d{6})\)\s*(.*)$/);
+        if (!m || r.date !== DAY) continue;
+        const idx = Number(((r.pdf || '').match(/report_idx=(\d+)/) || [])[1]);
+        out.push({ researchId: 900000000 + idx, itemName: m[1].trim(), itemCode: m[2], title: m[3].trim(), brokerName: r.broker, writeDate: r.date,
+          hk: { opinion: /없음/.test(r.opinion) ? '없음' : r.opinion, target: num(r.target) || null, pdf: r.pdf } });
+      }
+    }
+    return out;
+  }, true);
 }
 
 // 2) 상세: 투자의견·목표주가·현재주가·요약·PDF·같은 종목 과거 리포트
@@ -116,7 +139,7 @@ function pdfText(url, id) {
   const real = (() => { try { return new URL(url).searchParams.get('url') || url; } catch (e) { return url; } })();
   const f = path.join(WORK, 'pdf', `${id}.pdf`), t = path.join(WORK, 'pdf', `${id}.txt`);
   try {
-    if (!fs.existsSync(f)) execFileSync('curl', ['-sS', '-L', '-A', 'Mozilla/5.0', '-o', f, real], { timeout: 60000 });
+    if (!fs.existsSync(f)) execFileSync('curl', ['-sS', '-L', '-A', 'Mozilla/5.0', '-e', new URL(real).origin + '/', '-o', f, real], { timeout: 60000 });
     execFileSync('pdftotext', ['-layout', f, t], { timeout: 60000 });
     return { pdfUrl: real, textFile: path.relative(ROOT, t) };
   } catch (e) { return { pdfUrl: real, textFile: null }; }
@@ -134,11 +157,17 @@ function pdfHints(textFile) {
 
 (async () => {
   const browser = await chromium.launch();
-  const list = await fetchList(browser);
-  console.log(`[${DAY}] 리포트 ${list.length}건`);
+  const naver = await fetchList(browser);
+  let hk = [];
+  try { hk = await fetchHK(browser); } catch (e) { console.log('한경 컨센서스 실패:', String(e).slice(0, 120)); }
+  const key = x => x.itemCode + '|' + x.brokerName.replace(/\s/g, '');
+  const seen = new Set(naver.map(key));
+  const extra = hk.filter(x => !seen.has(key(x)));
+  const list = [...naver, ...extra];
+  console.log(`[${DAY}] 리포트 ${list.length}건 (네이버 ${naver.length} + 한경 컨센서스 추가 ${extra.length}, 한경 전체 ${hk.length})`);
   if (!list.length) { fs.writeFileSync(path.join(WORK, 'reports.json'), JSON.stringify({ date: DAY, reports: [] })); await browser.close(); return; }
 
-  const details = await pool(list, 3, x => fetchDetail(browser, x.researchId));
+  const details = await pool(list, 3, x => x.hk ? { opinion: x.hk.opinion, target: String(x.hk.target || ''), pdf: x.hk.pdf, summary: '', related: [] } : fetchDetail(browser, x.researchId));
   const codes = [...new Set(list.map(x => x.itemCode))];
   const stocks = Object.fromEntries((await pool(codes, 3, c => fetchStock(browser, c))).map((s, i) => [codes[i], s]));
 
@@ -154,9 +183,11 @@ function pdfHints(textFile) {
       if (pd) prevInfo = { id: prev.id, date: pdate || null, opinion: pd.opinion, target: num(pd.target) };
     }
     const pdf = d.pdf ? pdfText(d.pdf, x.researchId) : { pdfUrl: null, textFile: null };
+    const src = x.hk ? 'hankyung' : 'naver';
     reports.push({
       id: x.researchId, code: x.itemCode, name: x.itemName, title: x.title, broker: x.brokerName, date: x.writeDate,
-      readCount: num(x.readCount), url: `https://m.stock.naver.com/research/company/${x.researchId}`,
+      readCount: num(x.readCount), source: src,
+      url: x.hk ? x.hk.pdf : `https://m.stock.naver.com/research/company/${x.researchId}`,
       opinion: d.opinion || null, target: num(d.target), reportPrice: num(d.price), summary: d.summary || '',
       prev: prevInfo, ...pdf, ...pdfHints(pdf.textFile), stock: stocks[x.itemCode] || null,
     });

@@ -4,6 +4,7 @@
 
 ## 0. 준비
 - 이 저장소(`luckyhan-bot/luckyhan-report`)와 `luckyhan-bot/luckyhan-app`을 클론해 둔다.
+- 출처: 네이버 증권 종목분석 + 한경 컨센서스 기업 리포트(네이버에 없는 증권사 보충, 종목코드+증권사로 중복 제거). 한경 리포트 id는 900000000+report_idx.
 - 네이버 접속에는 Playwright(크롬)와 `pdftotext`를 쓴다. `npm ls playwright` 가 안 되면 전역 `require('playwright')`를 쓰면 된다.
 
 ## 1. 수집
