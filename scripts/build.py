@@ -2,14 +2,16 @@
 
 content.json (Claude가 PDF를 읽고 직접 다시 쓴 문장)
 {
-  "headline": "오늘의 한 줄 제목",
+  "headline": ["제목 첫 줄", "둘째 줄(빨강 강조)"],
+  "dek": "표지 소개 두 줄",
   "stocks": {"<리포트 id>": {"line": "업종 지도용 한 줄 설명",
-                             "about": ["어떤 회사? 1", "어떤 회사? 2"],
-                             "points": ["핵심 포인트 1", ... 4개],
+                             "about": "어떤 회사? 2~3문장, 핵심어는 **굵게**",
+                             "thesis": "증권사 결론 한 줄",
+                             "points": [{"h": "굵은 소제목", "d": "1~2문장 설명(용어 풀이 포함)"}, ... 4개],
                              "metrics": [["지표명", "값"], ... 3개],
                              "risk": "체크 한 줄"}},
-  "signals": [{"t": "시그널 제목", "d": "설명"}, ... 3개],
-  "standouts": [{"code": "...", "name": "...", "tag": "유일한 상향", "note": "..."}]
+  "signals": [{"t": "시그널 제목", "d": "여러 리포트를 가로지르는 설명, 종목명·숫자는 **굵게**"}, ... 3개],
+  "standouts": [{"dir": "up|down|none", "tag": "유일한 목표가 상향", "code": "...", "name": "...", "note": "..."}]
 }
 """
 import json, os, sys, glob, datetime
@@ -54,7 +56,7 @@ for p in picks:
         'target': target, 'targetPrev': j.get('target_prev'), 'targetDir': j.get('target_dir') or 'none',
         'price': price, 'upside': round((target / price - 1) * 100, 1) if target and price else None,
         'mcap': st.get('mcapPrev'),
-        'line': c['line'], 'about': c['about'], 'points': c['points'], 'metrics': c['metrics'], 'risk': c['risk'],
+        'line': c['line'], 'about': c['about'], 'thesis': c.get('thesis', ''), 'points': c['points'], 'metrics': c['metrics'], 'risk': c['risk'],
         'url': r['url'], 'pdf': r.get('pdfUrl'),
     })
 
@@ -72,7 +74,7 @@ while d.weekday() >= 5:
 
 out = {
     'date': day, 'basis': d.isoformat(), 'generatedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
-    'headline': content['headline'], 'totalReports': len(reports),
+    'headline': content['headline'], 'dek': content.get('dek', ''), 'totalReports': len(reports),
     'counts': {'opinion': ops, 'target': tg},
     'stocks': stocks, 'signals': content['signals'], 'standouts': content.get('standouts', []),
 }
@@ -83,7 +85,8 @@ json.dump(out, open(os.path.join(ROOT, 'data', f'{day}.json'), 'w', encoding='ut
 idx = []
 for f in sorted(glob.glob(os.path.join(ROOT, 'data', '20*.json')), reverse=True):
     x = json.load(open(f, encoding='utf-8'))
-    idx.append({'date': x['date'], 'headline': x['headline'],
+    hl = x['headline']
+    idx.append({'date': x['date'], 'headline': ' '.join(hl) if isinstance(hl, list) else hl,
                 'stocks': [[s['code'], s['name']] for s in x['stocks']]})
 json.dump({'updated': out['generatedAt'], 'days': idx}, open(os.path.join(ROOT, 'data', 'index.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print('저장:', f'data/{day}.json', '| 날짜 수', len(idx), '| 의견', ops, '| 목표가', tg)
