@@ -79,12 +79,15 @@ h1.big{font-size:34px;line-height:1.18;font-weight:900;letter-spacing:-1.2px;mar
 .redtag{background:var(--up);color:#fff;font-weight:900;padding:4px 10px;border-radius:6px}
 .hl{font-size:34px;line-height:1.2;font-weight:900;letter-spacing:-1.4px;margin:4px 0 12px;word-break:keep-all}
 .hl em{font-style:normal;color:#ff5a4f;display:block}
-.trio{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--nightline);border-bottom:1px solid var(--nightline);margin:14px 0}
+.trio{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--nightline);border-bottom:1px solid var(--nightline);margin:14px 0}
 .trio>div{padding:10px 8px 10px 0}
-.trio>div+div{border-left:1px solid var(--nightline);padding-left:10px}
-.trio .l{font-size:12px;color:var(--nightsub)}
-.trio .v{font-size:18px;font-weight:900;margin-top:2px;letter-spacing:-.5px}
-.trio .v .up{color:#ff5a4f} .trio .v .down{color:#6f98ff}
+.trio>div.full{grid-column:1/-1;border-bottom:1px solid var(--nightline)}
+.trio>div.r{border-left:1px solid var(--nightline);padding-left:12px}
+.trio .l{font-size:12.5px;color:var(--nightsub)}
+.trio .v{font-size:18px;font-weight:900;margin-top:3px;letter-spacing:-.4px;white-space:nowrap}
+.tchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tchips span{font-size:14.5px;font-weight:800;padding:3px 10px;border-radius:999px;background:var(--night2);white-space:nowrap}
+.tchips .up{color:#ff6a60} .tchips .down{color:#7fa4ff} .tchips .k{color:var(--nightsub)}
 .clist{list-style:none;margin:0;padding:0}
 .clist li{display:flex;align-items:baseline;gap:8px;padding:6px 0;cursor:pointer}
 .clist .dot{width:8px;height:8px;border-radius:50%;flex:none;transform:translateY(-1px)}
@@ -221,7 +224,7 @@ const footStock = s => `출처: ${esc(s.broker)} 리포트(${dotDate(s.date)}) �
 
 function cover(d){
   const o = d.counts.opinion, t = d.counts.target;
-  const ops = ["BUY", "HOLD", "SELL", "NR"].filter(k => o[k]).map(k => `${k === "NR" ? "NR" : k} ${o[k]}`).join(" · ");
+  const ops = ["BUY", "HOLD", "SELL", "NR"].filter(k => o[k]).map(k => `${k === "NR" ? "의견없음" : k} ${o[k]}`).join(" · ");
   const hl = Array.isArray(d.headline) ? `${esc(d.headline[0])}<em>${esc(d.headline[1] || "")}</em>` : esc(d.headline);
   const list = d.stocks.map((s, i) => `<li data-go="${i + 3}"><span class="dot" style="background:${colorOf(s.sector)}"></span><span class="nm">${esc(s.name)}</span><span class="sb">${esc(s.sub)}</span></li>`).join("");
   return shell(d, 0, `
@@ -229,10 +232,10 @@ function cover(d){
     <div class="hl">${hl}</div>
     ${d.dek ? `<p class="lead">${esc(d.dek)}</p>` : ""}
     <div class="trio">
+      <div class="full"><div class="l">목표주가 변경 (같은 증권사 직전 리포트 대비)</div><div class="tchips num">
+        <span class="down">▼ 하향 ${t.down}</span><span class="k">— 유지 ${t.keep}</span><span class="up">▲ 상향 ${t.up}</span>${t.new ? `<span class="k">★ 신규 ${t.new}</span>` : ""}${t.none ? `<span class="k">목표가 없음 ${t.none}</span>` : ""}</div></div>
       <div><div class="l">투자의견</div><div class="v num">${esc(ops)}</div></div>
-      <div><div class="l">목표주가 변경</div><div class="v num"><span class="down">▼${t.down}</span> · —${t.keep} · <span class="up">▲${t.up}</span></div>
-        ${t.new || t.none ? `<div class="l">신규 ${t.new} · 미제시 ${t.none}</div>` : ""}</div>
-      <div><div class="l">기준일</div><div class="v num">${esc(d.basisMD)} 종가</div></div>
+      <div class="r"><div class="l">기준일 (현재가)</div><div class="v num">${esc(d.basisMD)} 종가</div></div>
     </div>
     <div style="font-weight:800;font-size:14px;margin-bottom:4px">오늘의 10종목 <span style="color:var(--nightsub);font-weight:600">· 세부업종</span></div>
     <ul class="clist">${list}</ul>
