@@ -56,3 +56,34 @@ python3 scripts/build.py D       # data/D.json, data/index.json
 git add data && git commit -m "report D" && git pull --rebase && git push origin main
 ```
 GitHub Pages(main 브랜치 루트)로 바로 반영된다.
+
+---
+
+# 주말 다시보기 (토요일 실행)
+
+그 주(월~금) 매일 정리에서 **밀렸지만 읽어볼 만한 리포트**를 골라 토요일 날짜로 올린다. 토요일 날짜 = `S`.
+
+## 1. 후보 모으기
+```
+python3 scripts/weekly.py S      # work/weekly/S/candidates.json + pdf/*.txt
+```
+- 재료는 매일 build.py가 남긴 `data/pool/<날짜>.json`(그날 모든 리포트 + 뽑힘 여부 + 밀린 이유).
+- 그 주에 한 번이라도 매일 정리에 뽑힌 종목은 제외되고, 종목당 리포트 하나만 남는다.
+- 후보가 0개(그 주 정리가 하나도 없음)면 아무것도 커밋하지 않고 끝낸다.
+
+## 2. 고르기 → `work/weekly/S/content.json`
+후보 PDF(`textFile`)를 읽고 **5~8개**를 고른다. 기준(우선순위 아님, 종합 판단):
+- 매일 규칙 때문에 기계적으로 밀린 좋은 리포트: AI 6종목 한도, 업종 중복, 시가총액 순위로 밀린 목표가 변경·의견 변경 리포트
+- 새로운 정보가 많은 리포트: 신규 커버리지, 탐방·NDR 후기, 산업 구조 변화, 처음 보는 기업의 사업 설명이 충실한 것
+- 이번 주 매일 정리의 시그널과 연결되거나 반대되는 관점
+- 관심 종목(work/portfolio.json)의 경쟁사·공급망
+- 목표가 대비 상승여력이 유난히 큰 종목은 근거가 탄탄한지 확인 후
+각 카드에 `pushed`(왜 밀렸나: candidates.json의 `reason`을 쉬운 말로, 어떤 종목에 자리를 내줬는지까지)와
+`chosen`(왜 골랐나: 지금 읽어볼 가치, 숫자·근거 포함)을 쓰고, 나머지 형식(line/about/thesis/points/metrics/risk)은 매일 정리와 같다.
+`signals` 2~3개: 밀린 리포트들을 모아 보니 보이는 흐름. 형식은 build_weekly.py 머리말 참고.
+
+## 3. 저장·배포
+```
+python3 scripts/build_weekly.py S   # data/S.json (type: weekly), data/index.json
+git add data && git commit -m "weekly S" && git pull --rebase && git push origin main
+```

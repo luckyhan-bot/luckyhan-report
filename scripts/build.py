@@ -78,15 +78,29 @@ out = {
     'counts': {'opinion': ops, 'target': tg},
     'stocks': stocks, 'signals': content['signals'], 'standouts': content.get('standouts', []),
 }
-os.makedirs(os.path.join(ROOT, 'data'), exist_ok=True)
+os.makedirs(os.path.join(ROOT, 'data', 'pool'), exist_ok=True)
+# 그날 모든 리포트(뽑힌 것 + 밀린 이유) → data/pool/<날짜>.json  (주말 다시보기 재료)
+try:
+    skipped = {x['id']: x['skip'] for x in load('skipped.json')}
+except FileNotFoundError:
+    skipped = {}
+pick_reason = {p['id']: p['reason'] for p in picks}
+pool = []
+for r in reports.values():
+    j = judge.get(r['id'], {}); st = r.get('stock') or {}
+    pprice = r.get('reportPrice') or st.get('prevClose'); ptg = r.get('target')
+    pool.append({'id': r['id'], 'code': r['code'], 'name': r['name'], 'broker': r['broker'], 'title': r['title'], 'date': r['date'],
+                 'source': r.get('source', 'naver'), 'opinion': norm_op(r.get('opinion')), 'target': ptg, 'targetPrev': j.get('target_prev'),
+                 'targetDir': j.get('target_dir') or 'none', 'opinionChanged': bool(j.get('opinion_changed')),
+                 'sector': j.get('sector'), 'sub': j.get('sub'), 'ai': bool(j.get('ai')), 'robot': bool(j.get('robot')),
+                 'mcap': st.get('mcapPrev'), 'price': pprice, 'upside': round((ptg / pprice - 1) * 100, 1) if ptg and pprice else None,
+                 'url': r['url'], 'pdf': r.get('pdfUrl'), 'readCount': r.get('readCount'),
+                 'picked': r['id'] in pick_reason, 'reason': pick_reason.get(r['id']) or skipped.get(r['id'])})
+json.dump({'date': day, 'reports': pool}, open(os.path.join(ROOT, 'data', 'pool', f'{day}.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 json.dump(out, open(os.path.join(ROOT, 'data', f'{day}.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 
 # 날짜 목록 (검색용으로 종목명·코드도 함께)
-idx = []
-for f in sorted(glob.glob(os.path.join(ROOT, 'data', '20*.json')), reverse=True):
-    x = json.load(open(f, encoding='utf-8'))
-    hl = x['headline']
-    idx.append({'date': x['date'], 'headline': ' '.join(hl) if isinstance(hl, list) else hl,
-                'stocks': [[s['code'], s['name']] for s in x['stocks']]})
-json.dump({'updated': out['generatedAt'], 'days': idx}, open(os.path.join(ROOT, 'data', 'index.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from indexer import rebuild
+idx = rebuild(ROOT)
 print('저장:', f'data/{day}.json', '| 날짜 수', len(idx), '| 의견', ops, '| 목표가', tg)

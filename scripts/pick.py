@@ -83,6 +83,28 @@ while len(picked) < N:
     r = pool[0]
     take(r, '목표가 변경' if r['tchg'] else '투자의견 변경' if r['ochg'] else '업종 다양성')
 
+# 뽑히지 않은 리포트: 왜 밀렸는지 기록 (주말 다시보기용)
+chosen_codes = {r['code'] for r in picked}
+used_sec = {r.get('sector') for r in picked}
+skipped = []
+for r in map(info, reports):
+    if r['id'] in why:
+        continue
+    if r['code'] in chosen_codes or best[r['code']][1]['id'] != r['id']:
+        sk = '같은 종목의 다른 리포트를 대신 선택'
+    elif (r.get('ai') or r.get('robot')) and n_ai() >= AI_MAX:
+        sk = f'AI 관련 {AI_MAX}종목 한도가 시가총액 더 큰 종목으로 이미 참'
+    elif r['tchg']:
+        sk = '목표가 변경 리포트가 많아 시가총액·업종 순위에서 밀림'
+    elif r['ochg']:
+        sk = '투자의견 변경 리포트끼리 경쟁에서 밀림'
+    elif r.get('sector') in used_sec:
+        sk = f"목표가·의견 변경 없음 + 업종({r.get('sector')}) 중복"
+    else:
+        sk = '목표가·의견 변경 없음, 남은 자리를 시가총액 큰 종목이 차지'
+    skipped.append({'id': r['id'], 'code': r['code'], 'name': r['name'], 'skip': sk})
+json.dump(skipped, open(os.path.join(W, day, 'skipped.json'), 'w'), ensure_ascii=False, indent=1)
+
 out = [{'id': r['id'], 'code': r['code'], 'name': r['name'], 'reason': why[r['id']],
         'fav': r['code'] in favs, 'hold': r['code'] in holds} for r in picked]
 json.dump(out, open(os.path.join(W, day, 'picks.json'), 'w'), ensure_ascii=False, indent=1)

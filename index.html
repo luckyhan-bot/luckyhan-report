@@ -156,6 +156,13 @@ h1.big{font-size:34px;line-height:1.18;font-weight:900;letter-spacing:-1.2px;mar
 .met .v{font-weight:900;font-size:16px;margin-top:3px;letter-spacing:-.4px;line-height:1.25;word-break:keep-all}
 .check{display:flex;gap:10px;margin-top:12px;font-size:14.5px;word-break:keep-all}
 .check .k{flex:none;background:var(--ink);color:var(--paper);font-weight:900;font-size:12.5px;padding:3px 8px;border-radius:5px;height:fit-content;margin-top:2px}
+.why{display:grid;gap:6px;margin:12px 0 2px}
+.why>div{border-radius:12px;padding:9px 12px;font-size:14.5px;word-break:keep-all}
+.why .k{display:block;font-size:12px;font-weight:900;letter-spacing:.3px;margin-bottom:1px}
+.why .p{background:var(--tile);border:1px dashed var(--line)} .why .p .k{color:var(--mute)}
+.why .c{background:#fdecea;border:1px solid #f4c7c2} .why .c .k{color:var(--up)}
+:root[data-theme="dark"] .why .c{background:#3a1c1e;border-color:#5a2a2c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .why .c{background:#3a1c1e;border-color:#5a2a2c}}
 .orig{display:inline-block;margin-top:10px;font-size:13px;color:var(--sub)}
 
 /* 총정리 */
@@ -210,6 +217,7 @@ $("theme").onclick = () => {
 };
 const getJSON = async u => { const r = await fetch(u + "?v=" + Date.now()); if (!r.ok) throw new Error(r.status); return r.json(); };
 const dotDate = d => d.replace(/-/g, ".");
+const md = d => { const [, m, dd] = d.split("-"); return `${+m}/${+dd}`; };
 const opName = o => o === "NR" ? "의견없음" : o;
 const badges = s => (s.badges || []).map(b => `<span class="badge ${esc(b)}">${esc(b)}</span>`).join("");
 const brokers = d => { const b = [...new Set(d.stocks.map(s => s.broker.replace(/투자증권|증권$/, "")))]; return b.join("·") + " 증권사"; };
@@ -226,18 +234,20 @@ function cover(d){
   const o = d.counts.opinion, t = d.counts.target;
   const ops = ["BUY", "HOLD", "SELL", "NR"].filter(k => o[k]).map(k => `${k === "NR" ? "의견없음" : k} ${o[k]}`).join(" · ");
   const hl = Array.isArray(d.headline) ? `${esc(d.headline[0])}<em>${esc(d.headline[1] || "")}</em>` : esc(d.headline);
-  const list = d.stocks.map((s, i) => `<li data-go="${i + 3}"><span class="dot" style="background:${colorOf(s.sector)}"></span><span class="nm">${esc(s.name)}</span><span class="sb">${esc(s.sub)}</span></li>`).join("");
+  const list = d.stocks.map((s, i) => `<li data-go="${i + 3}"><span class="dot" style="background:${colorOf(s.sector)}"></span><span class="nm">${esc(s.name)}</span><span class="sb">${d.type === "weekly" ? md(s.date) + " · " : ""}${esc(s.sub)}</span></li>`).join("");
   return shell(d, 0, `
-    <div class="tagrow"><span class="redtag">증권사 리포트 10선</span><span>오늘 나온 ${d.totalReports}건 중 3분 요약</span></div>
+    ${d.type === "weekly"
+      ? `<div class="tagrow"><span class="redtag">주말 다시보기</span><span>${md(d.range[0])}~${md(d.range[1])} 밀린 리포트 ${d.totalReports}건 중 ${d.stocks.length}개</span></div>`
+      : `<div class="tagrow"><span class="redtag">증권사 리포트 10선</span><span>오늘 나온 ${d.totalReports}건 중 3분 요약</span></div>`}
     <div class="hl">${hl}</div>
     ${d.dek ? `<p class="lead">${esc(d.dek)}</p>` : ""}
     <div class="trio">
       <div class="full"><div class="l">목표주가 변경 (같은 증권사 직전 리포트 대비)</div><div class="tchips num">
         <span class="down">▼ 하향 ${t.down}</span><span class="k">— 유지 ${t.keep}</span><span class="up">▲ 상향 ${t.up}</span>${t.new ? `<span class="k">★ 신규 ${t.new}</span>` : ""}${t.none ? `<span class="k">목표가 없음 ${t.none}</span>` : ""}</div></div>
       <div><div class="l">투자의견</div><div class="v num">${esc(ops)}</div></div>
-      <div class="r"><div class="l">기준일 (현재가)</div><div class="v num">${esc(d.basisMD)} 종가</div></div>
+      <div class="r"><div class="l">${d.type === "weekly" ? "현재가 기준" : "기준일 (현재가)"}</div><div class="v num">${d.type === "weekly" ? "각 리포트 전일" : esc(d.basisMD) + " 종가"}</div></div>
     </div>
-    <div style="font-weight:800;font-size:14px;margin-bottom:4px">오늘의 10종목 <span style="color:var(--nightsub);font-weight:600">· 세부업종</span></div>
+    <div style="font-weight:800;font-size:14px;margin-bottom:4px">${d.type === "weekly" ? "다시 볼 " + d.stocks.length + "종목" : "오늘의 10종목"} <span style="color:var(--nightsub);font-weight:600">· 세부업종</span></div>
     <ul class="clist">${list}</ul>
     <div class="nextcue"><span>업종 지도 → 투자의견 → 종목별 요약 → 총정리</span><b>넘겨보기 →</b></div>`,
     {night: true, foot: `${esc(dotDate(d.date))} 발간 ${esc(brokers(d))} 리포트를 요약·재구성 · 투자 권유가 아닙니다`});
@@ -270,13 +280,14 @@ function opinions(d){
         `<div class="bar"><i class="${u < 0 ? "neg" : ""}" style="width:${Math.max(2, Math.abs(u) / max * 100)}%"></i></div><span class="pct num ${u < 0 ? "down" : "up"}">${u > 0 ? "+" : ""}${u.toFixed(1)}%</span>`}</div>
     </div>`;
   }).join("");
-  return shell(d, 2, `<h1 class="big">투자의견 한눈에</h1><p class="lead">목표주가 대비 상승여력 순 · 현재가는 ${esc(d.basisMD)} 종가</p>
+  return shell(d, 2, `<h1 class="big">투자의견 한눈에</h1><p class="lead">목표주가 대비 상승여력 순 · 현재가는 ${d.type === "weekly" ? "각 리포트 날짜의 전일" : esc(d.basisMD)} 종가</p>
     <div class="otab">${html}</div>
     <p class="legend">한국 시장 관례대로 <b class="up">빨강 = 상승·상향</b>, <b class="down">파랑 = 하락·하향</b>. 상승여력은 증권사 목표가 기준이라 낙관 편향이 있으니 <b>방향과 근거</b>에 주목하세요.</p>`,
     {foot: `출처: 각 증권사 리포트(${dotDate(d.date)}) · 투자 권유가 아닙니다`});
 }
 
 function stock(d, s, i){
+  if (s.basis) { const [, bm, bd] = s.basis.split("-"); s.basisMD = `${+bm}/${+bd}`; } else s.basisMD = d.basisMD;
   const c = colorOf(s.sector), [t, tc, a] = DIR[s.targetDir] || DIR.none, u = s.upside;
   const tgt = s.target ? `<div class="v num">${n0(s.target)}<small>원</small></div><div class="d ${tc}">${a} ${t}${s.targetPrev && s.targetPrev !== s.target ? ` <span>(기존 ${n0(s.targetPrev)})</span>` : ""}</div>`
                        : `<div class="v">미제시</div><div class="d keep">목표가 없음</div>`;
@@ -288,12 +299,13 @@ function stock(d, s, i){
   return shell(d, i, `
     <div class="path"><span class="pill" style="background:${c}">${esc(s.sector)}</span><span>›</span><span class="last" style="color:${c}">${esc(s.sub)}</span></div>
     <div class="sname"><h2>${esc(s.name)}</h2><span class="code num">${esc(s.code)}</span>${badges(s)}</div>
-    <div class="rep"><b>${esc(s.broker)}</b> · “${esc(s.title)}”</div>
+    <div class="rep"><b>${esc(s.broker)}</b>${d.type === "weekly" ? ` · ${md(s.date)}` : ""} · “${esc(s.title)}”</div>
+    ${s.pushed ? `<div class="why"><div class="p"><span class="k">왜 밀렸나</span>${rich(s.pushed)}</div><div class="c"><span class="k">왜 골랐나</span>${rich(s.chosen)}</div></div>` : ""}
     <div class="stat4">
       <div><div class="l">투자의견</div><div style="margin-top:6px"><span class="op ${s.opinion}" style="font-size:16px;padding:3px 12px">${opName(s.opinion)}</span></div>
         <div class="d keep" style="margin-top:4px">${s.opinionChanged ? "의견 변경" : s.targetDir === "new" ? "신규" : s.opinion === "NR" ? "" : "유지"}</div></div>
       <div><div class="l">목표주가</div>${tgt}</div>
-      <div><div class="l">현재가 (${esc(d.basisMD)})</div><div class="v num">${n0(s.price)}<small>원</small></div></div>
+      <div><div class="l">현재가 (${esc(s.basisMD)})</div><div class="v num">${n0(s.price)}<small>원</small></div></div>
       <div><div class="l">${u != null && u < 0 ? "하락여력" : "상승여력"}</div><div class="v big num ${u == null ? "keep" : u < 0 ? "down" : "up"}">${u == null ? "-" : (u > 0 ? "+" : "") + u.toFixed(1) + "%"}</div></div>
     </div>
     <div class="about"><div class="k" style="color:${c}">어떤 회사?</div>${about}</div>
@@ -303,7 +315,7 @@ function stock(d, s, i){
     <div class="mets">${s.metrics.map(([k, v]) => `<div class="met"><div class="l">${esc(k)}</div><div class="v num">${esc(v)}</div></div>`).join("")}</div>
     <div class="check"><span class="k">체크</span><span>${rich(s.risk)}</span></div>
     <a class="orig" href="${esc(s.url)}" target="_blank" rel="noopener">리포트 원문 보기 ↗</a>`,
-    {rail: c, foot: footStock(Object.assign({basisMD: d.basisMD}, s))});
+    {rail: c, foot: footStock(s)});
 }
 
 function summary(d){
@@ -313,7 +325,7 @@ function summary(d){
     return `<div class="so" ${i >= 0 ? `data-go="${i + 3}"` : ""}><div class="t">${esc(x.tag)}</div><div class="n">${dir}${esc(x.name)}</div><div class="x">${esc(x.note)}</div></div>`;
   }).join("");
   return shell(d, N - 1, `<div style="color:#ff5a4f;font-weight:800;font-size:15px">총정리</div>
-    <h1 class="big">리포트 ${d.stocks.length}개에서 읽히는 ${d.signals.length}가지 시그널</h1>${sig}<div class="sogrid">${so}</div>`,
+    <h1 class="big">${d.type === "weekly" ? "밀렸던 리포트에서 읽히는 " + d.signals.length + "가지" : "리포트 " + d.stocks.length + "개에서 읽히는 " + d.signals.length + "가지 시그널"}</h1>${sig}${so ? `<div class="sogrid">${so}</div>` : ""}`,
     {night: true, foot: `본 콘텐츠는 ${dotDate(d.date)} 발간된 ${esc(brokers(d))} 리포트를 요약·재구성한 것으로 투자 권유가 아닙니다. 수치는 각 증권사 추정치이며, 투자 판단과 책임은 투자자 본인에게 있습니다.`});
 }
 
