@@ -42,6 +42,10 @@ header input{height:38px;min-width:0;border:1px solid var(--line);background:var
 #results button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:11px 14px;cursor:pointer}
 #results button:last-child{border-bottom:0}
 #results small{color:var(--sub)}
+#results .grp{padding:8px 14px 4px;font-size:12px;font-weight:800;color:var(--mute);background:var(--box)}
+#results .snip{display:block;font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.45;word-break:keep-all}
+#results .lab{display:inline-block;font-size:11px;font-weight:800;color:var(--paper);background:var(--sub);border-radius:4px;padding:0 5px;margin-right:4px}
+mark{background:#ffe08a;color:#15171c;border-radius:3px;padding:0 1px}
 
 /* 카드 넘기기 */
 #deck{display:flex;align-items:flex-start;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -183,7 +187,7 @@ h1.big{font-size:34px;line-height:1.18;font-weight:900;letter-spacing:-1.2px;mar
 <body>
 <header>
   <input id="dateIn" type="text" inputmode="numeric" enterkeyhint="go" placeholder="2026-11-19" autocomplete="off" aria-label="날짜 (입력 후 엔터)">
-  <input id="q" type="search" enterkeyhint="search" placeholder="종목 검색 (엔터)" autocomplete="off" aria-label="종목 검색">
+  <input id="q" type="search" enterkeyhint="search" placeholder="종목·용어 검색 (엔터)" autocomplete="off" aria-label="종목·용어 검색">
   <button class="ib" id="prevDay" aria-label="이전 날짜">◀</button>
   <button class="ib" id="nextDay" aria-label="다음 날짜">▶</button>
   <button class="ib" id="theme" aria-label="화면 테마">◐</button>
@@ -364,7 +368,7 @@ async function openDay(date, card){
   try {
     const d = await getJSON(`data/${date}.json`);
     DAY = date; $("dateIn").value = date; render(d); navBtns(); toast("");
-    if (card != null) setTimeout(() => go(card), 50);
+    if (card != null) setTimeout(() => { go(card < 0 ? N - 1 : card); if (HL) highlight(card < 0 ? N - 1 : card, HL); }, 50);
   } catch (e) {
     toast(`${esc(date)} 정리가 없어요 (주말·휴장일이거나 정리 전). 최근: ${INDEX.days.slice(0, 4).map(x => x.date).join(", ")}`);
     $("dateIn").value = DAY || "";
@@ -381,16 +385,48 @@ $("dateIn").addEventListener("change", () => {
 });
 $("prevDay").onclick = () => { const ds = INDEX.days.map(x => x.date), i = ds.indexOf(DAY); if (i >= 0 && i < ds.length - 1) openDay(ds[i + 1]); };
 $("nextDay").onclick = () => { const ds = INDEX.days.map(x => x.date), i = ds.indexOf(DAY); if (i > 0) openDay(ds[i - 1]); };
-$("q").addEventListener("change", () => {
-  const q = $("q").value.trim().toLowerCase(), box = $("results");
+// 종목명·코드 + 요약 본문 전체에서 용어 검색 (엔터/다른 곳 탭 때만 실행)
+let SEARCH = null, HL = "";
+const reEsc = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function snippet(text, q){
+  const i = text.toLowerCase().indexOf(q.toLowerCase()); if (i < 0) return esc(text.slice(0, 80));
+  const a = Math.max(0, i - 34), b = Math.min(text.length, i + q.length + 46);
+  return (a > 0 ? "…" : "") + esc(text.slice(a, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length, b)) + (b < text.length ? "…" : "");
+}
+function highlight(card, q){
+  const sl = document.querySelectorAll(".slide")[card]; if (!sl || !q) return;
+  const re = new RegExp(reEsc(q), "gi"), walker = document.createTreeWalker(sl, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walker.nextNode()) if (re.test(walker.currentNode.nodeValue)) nodes.push(walker.currentNode);
+  nodes.forEach(n => { const span = document.createElement("span"); span.innerHTML = esc(n.nodeValue).replace(new RegExp(reEsc(esc(q)), "gi"), m => `<mark>${m}</mark>`); n.replaceWith(span); });
+  const first = sl.querySelector("mark"); if (first) setTimeout(() => first.scrollIntoView({block: "center", behavior: "smooth"}), 350);
+}
+$("q").addEventListener("change", async () => {
+  const raw = $("q").value.trim(), q = raw.toLowerCase(), box = $("results");
   if (!q) { box.style.display = "none"; box.innerHTML = ""; return; }
-  const hits = [];
-  for (const day of INDEX.days) day.stocks.forEach(([code, name], i) => { if (code.includes(q) || name.toLowerCase().includes(q)) hits.push({date: day.date, code, name, i}); });
+  if (!SEARCH) { try { SEARCH = await getJSON("data/search.json"); } catch (e) { SEARCH = []; } }
+  const names = [];
+  for (const day of INDEX.days) day.stocks.forEach(([code, name], i) => { if (code.includes(q) || name.toLowerCase().includes(q)) names.push({date: day.date, code, name, i}); });
+  const seen = new Set(), terms = [];
+  for (const [date, card, name, code, label, text] of SEARCH) {
+    if (!text.toLowerCase().includes(q)) continue;
+    const k = date + card; if (seen.has(k)) continue; seen.add(k);    // 카드당 첫 문장 하나
+    terms.push({date, card, name, code, label, text});
+  }
+  let html = "";
+  if (names.length) html += `<div class="grp">종목 ${names.length}</div>` + names.slice(0, 20).map(h => `<button data-d="${h.date}" data-c="${h.i + 3}"><b>${esc(h.name)}</b> <small class="num">${esc(h.code)} · ${esc(h.date)}</small></button>`).join("");
+  if (terms.length) html += `<div class="grp">'${esc(raw)}' 이(가) 쓰인 곳 ${terms.length}</div>` + terms.slice(0, 40).map(h => `<button data-d="${h.date}" data-c="${h.card}" data-h="1"><b>${esc(h.name)}</b> <small class="num">${h.code ? esc(h.code) + " · " : ""}${esc(h.date)}</small><span class="snip"><span class="lab">${esc(h.label)}</span>${snippet(h.text, raw)}</span></button>`).join("");
   box.style.display = "block";
-  box.innerHTML = hits.length ? hits.slice(0, 50).map(h => `<button data-d="${h.date}" data-i="${h.i}"><b>${esc(h.name)}</b> <small class="num">${esc(h.code)} · ${esc(h.date)}</small></button>`).join("")
-    : `<div style="padding:12px;color:var(--sub)">'${esc(q)}' 종목이 들어간 날이 없어요.</div>`;
+  box.innerHTML = html || `<div style="padding:12px;color:var(--sub)">'${esc(raw)}' 이(가) 나온 종목·글이 없어요.</div>`;
+  box.dataset.q = raw;
 });
-$("results").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; $("results").style.display = "none"; openDay(b.dataset.d, +b.dataset.i + 3); });
+$("results").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("results").style.display = "none";
+  HL = b.dataset.h ? $("results").dataset.q : "";
+  const c = +b.dataset.c;
+  if (b.dataset.d === DAY) { go(c < 0 ? N - 1 : c); if (HL) highlight(c < 0 ? N - 1 : c, HL); }
+  else openDay(b.dataset.d, c);
+});
 
 (async () => {
   try { INDEX = await getJSON("data/index.json"); } catch (e) { INDEX = {days: []}; }
