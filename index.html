@@ -37,6 +37,14 @@ header input{height:38px;min-width:0;border:1px solid var(--line);background:var
 #q{flex:1}
 .ib{flex:none;border:1px solid var(--line);background:var(--paper);border-radius:10px;height:38px;width:38px;padding:0;cursor:pointer;font-size:14px}
 .ib:disabled{opacity:.3}
+#pin{position:fixed;left:10px;right:10px;z-index:6;display:none;align-items:center;gap:8px;background:var(--paper);border-radius:0 0 12px 12px;
+  padding:8px 12px 8px 16px;box-shadow:0 6px 14px rgba(0,0,0,.12);overflow:hidden}
+#pin.on{display:flex}
+#pin .bar{position:absolute;left:0;top:0;bottom:0;width:6px}
+#pin .nm{font-weight:900;font-size:19px;letter-spacing:-.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:48%}
+#pin .cd{color:var(--mute);font-weight:700;font-size:13px}
+#pin .rt{margin-left:auto;text-align:right;font-size:12.5px;line-height:1.3;white-space:nowrap}
+#pin .rt b{font-size:15px}
 #toast{display:none;margin:0 12px 6px;padding:8px 12px;border-radius:10px;background:var(--box);font-size:13.5px}
 #results{display:none;margin:0 12px 8px;background:var(--paper);border:1px solid var(--line);border-radius:12px;max-height:46vh;overflow:auto}
 #results button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:11px 14px;cursor:pointer}
@@ -192,6 +200,7 @@ h1.big{font-size:34px;line-height:1.18;font-weight:900;letter-spacing:-1.2px;mar
   <button class="ib" id="nextDay" aria-label="다음 날짜">▶</button>
   <button class="ib" id="theme" aria-label="화면 테마">◐</button>
 </header>
+<div id="pin" aria-hidden="true"></div>
 <div id="toast"></div>
 <div id="results"></div>
 <main id="deck" aria-live="polite"></main>
@@ -341,9 +350,26 @@ function render(d){
   $("dots").innerHTML = Array.from({length: N}, () => "<i></i>").join("");
   deck.scrollLeft = 0; CUR = 0; mark();
 }
+// 종목 카드에서 기업명이 위로 사라지면 상단에 기업명 줄 고정
+function pinUpdate(){
+  const pin = $("pin"), sl = document.querySelectorAll(".slide")[CUR], nm = sl && sl.querySelector(".sname");
+  const top = document.querySelector("header").getBoundingClientRect().bottom;
+  if (!nm || nm.getBoundingClientRect().bottom > top + 4) { pin.classList.remove("on"); return; }
+  const rail = sl.querySelector(".rail"), path = sl.querySelector(".path .last"), code = sl.querySelector(".sname .code");
+  const up = sl.querySelector(".stat4 .big"), tp = sl.querySelectorAll(".stat4 > div")[1];
+  const tv = tp && tp.querySelector(".v"), td = tp && tp.querySelector(".d");
+  pin.style.top = top + "px";
+  pin.innerHTML = `<span class="bar" style="background:${rail ? rail.style.background : "var(--ink)"}"></span>
+    <span class="nm">${esc(nm.querySelector("h2").textContent)}</span><span class="cd num">${esc(code ? code.textContent : "")}</span>
+    <span class="rt num">${tv ? `목표 <b>${esc(tv.textContent)}</b> <span class="${td ? td.className.replace("d ", "") : ""}">${td ? esc(td.textContent.split("(")[0].trim()) : ""}</span><br>` : ""}${up ? `<span class="${up.className.replace(/v big num ?/, "")}">상승여력 ${esc(up.textContent)}</span>` : ""}</span>`;
+  pin.classList.add("on");
+}
+addEventListener("scroll", pinUpdate, {passive: true});
+addEventListener("resize", pinUpdate);
 function mark(){
   [...$("dots").children].forEach((x, i) => x.classList.toggle("on", i === CUR));
   $("prevCard").disabled = CUR <= 0; $("nextCard").disabled = CUR >= N - 1;
+  setTimeout(pinUpdate, 30);
 }
 function go(i){
   const deck = $("deck"), nx = Math.max(0, Math.min(N - 1, i)), far = Math.abs(nx - CUR) > 1;
