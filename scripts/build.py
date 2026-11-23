@@ -51,7 +51,7 @@ for p in picks:
         'id': r['id'], 'code': r['code'], 'name': r['name'], 'market': st.get('market'),
         'sector': j.get('sector'), 'sub': j.get('sub'), 'badges': badges, 'reason': p['reason'],
         'broker': r['broker'], 'title': r['title'], 'date': r['date'],
-        'opinion': norm_op(r.get('opinion')), 'opinionRaw': r.get('opinion'),
+        'opinion': norm_op(j.get('opinion') or r.get('opinion')), 'opinionRaw': j.get('opinion') or r.get('opinion'),
         'opinionChanged': bool(j.get('opinion_changed')),
         'target': target, 'targetPrev': j.get('target_prev'), 'targetDir': j.get('target_dir') or 'none',
         'price': price, 'upside': round((target / price - 1) * 100, 1) if target and price else None,
@@ -90,7 +90,7 @@ for r in reports.values():
     j = judge.get(r['id'], {}); st = r.get('stock') or {}
     pprice = r.get('reportPrice') or st.get('prevClose'); ptg = r.get('target')
     pool.append({'id': r['id'], 'code': r['code'], 'name': r['name'], 'broker': r['broker'], 'title': r['title'], 'date': r['date'],
-                 'source': r.get('source', 'naver'), 'opinion': norm_op(r.get('opinion')), 'target': ptg, 'targetPrev': j.get('target_prev'),
+                 'source': r.get('source', 'naver'), 'opinion': norm_op(j.get('opinion') or r.get('opinion')), 'target': ptg, 'targetPrev': j.get('target_prev'),
                  'targetDir': j.get('target_dir') or 'none', 'opinionChanged': bool(j.get('opinion_changed')),
                  'sector': j.get('sector'), 'sub': j.get('sub'), 'ai': bool(j.get('ai')), 'robot': bool(j.get('robot')),
                  'mcap': st.get('mcapPrev'), 'price': pprice, 'upside': round((ptg / pprice - 1) * 100, 1) if ptg and pprice else None,

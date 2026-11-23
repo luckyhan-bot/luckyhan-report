@@ -21,6 +21,7 @@ reports.json의 **모든 리포트**에 대해, PDF 첫 장(`textFile`)과 끝�
 {"<리포트 id>": {"sector": "반도체", "sub": "전공정 장비(고압 열처리)", "ai": true, "robot": false,
                  "target_prev": 71000, "target_dir": "keep", "opinion_changed": false}}
 ```
+- `opinion`(선택): 네이버 상세의 투자의견이 PDF와 다르면(예: "없음"인데 PDF는 Trading Buy) PDF 기준으로 적는다.
 - `target_dir`: `up`/`down`/`keep`(같은 증권사 직전 목표가 대비), `new`(신규 커버리지), `none`(목표가 없음).
   reports.json의 `prev`(같은 증권사 직전 리포트)와 PDF 표기('상향/하향/유지', 변동 내역 표)를 함께 확인.
 - `ai`: 반도체(메모리·HBM·파운드리·장비·소재·부품), AI 서버용 기판·전자부품, 전력기기·전선(데이터센터 전력),
