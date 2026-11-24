@@ -13,6 +13,7 @@
          로봇 리포트가 있으면 시총과 관계없이 최소 1개.
   3단계 나머지: 목표가 변경 > 투자의견 변경 > 업종이 겹치지 않게(같으면 시총 큰 순).
   같은 종목 리포트가 여럿이면 하나만(목표가 변경 있는 쪽, 다음은 조회수).
+  최근 5일 안에 이미 뽑았던 같은 리포트(종목·증권사·제목 동일)는 제외.
 """
 import json, sys, os
 
@@ -35,9 +36,26 @@ def info(r):
             'tchg': j.get('target_dir') in ('up', 'down'),
             'ochg': bool(j.get('opinion_changed'))}
 
+# 최근 5일 안에 이미 뽑았던 리포트(같은 종목·증권사·제목)는 제외 — 하루 늦게 다시 올라온 리포트
+import glob, datetime
+shown = set()
+for f in glob.glob(os.path.join(W, '..', 'data', 'pool', '*.json')):
+    d0 = os.path.basename(f)[:10]
+    try:
+        gap = (datetime.date.fromisoformat(day) - datetime.date.fromisoformat(d0)).days
+    except ValueError:
+        continue
+    if 0 < gap <= 5:
+        for x in json.load(open(f, encoding='utf-8'))['reports']:
+            if x.get('picked'):
+                shown.add((x['code'], x['broker'], x['title']))
+repeat = {r['id'] for r in reports if (r['code'], r['broker'], r['title']) in shown}
+
 # 종목당 리포트 하나
 best = {}
 for r in map(info, reports):
+    if r['id'] in repeat:
+        continue
     k = r['code']
     key = (r['tchg'], r['ochg'], r.get('readCount') or 0)
     if k not in best or key > best[k][0]:
@@ -90,7 +108,9 @@ skipped = []
 for r in map(info, reports):
     if r['id'] in why:
         continue
-    if r['code'] in chosen_codes or best[r['code']][1]['id'] != r['id']:
+    if r['id'] in repeat:
+        sk = '최근 매일 정리에서 이미 다룬 같은 리포트(하루 늦게 다시 올라옴)'
+    elif r['code'] in chosen_codes or r['code'] not in best or best[r['code']][1]['id'] != r['id']:
         sk = '같은 종목의 다른 리포트를 대신 선택'
     elif (r.get('ai') or r.get('robot')) and n_ai() >= AI_MAX:
         sk = f'AI 관련 {AI_MAX}종목 한도가 시가총액 더 큰 종목으로 이미 참'
