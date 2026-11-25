@@ -50,6 +50,9 @@ for f in glob.glob(os.path.join(W, '..', 'data', 'pool', '*.json')):
             if x.get('picked'):
                 shown.add((x['code'], x['broker'], x['title']))
 repeat = {r['id'] for r in reports if (r['code'], r['broker'], r['title']) in shown}
+# 판단 파일에서 제외 표시한 리포트(예: PDF가 다른 종목 파일로 잘못 연결됨)
+excluded = {r['id']: judge.get(r['id'], {}).get('exclude') for r in reports if judge.get(r['id'], {}).get('exclude')}
+repeat |= set(excluded)
 
 # 종목당 리포트 하나
 best = {}
@@ -108,7 +111,9 @@ skipped = []
 for r in map(info, reports):
     if r['id'] in why:
         continue
-    if r['id'] in repeat:
+    if r['id'] in excluded:
+        sk = '제외: ' + str(excluded[r['id']])
+    elif r['id'] in repeat:
         sk = '최근 매일 정리에서 이미 다룬 같은 리포트(하루 늦게 다시 올라옴)'
     elif r['code'] in chosen_codes or r['code'] not in best or best[r['code']][1]['id'] != r['id']:
         sk = '같은 종목의 다른 리포트를 대신 선택'
